@@ -1,0 +1,142 @@
+<?php
+
+function pum_contactsegment_drupal_webform_component_render_alter(&$element, &$component) {
+    if (!WebformContactSegment::checkComponentForContactSegment($component)) {
+        return;
+    }
+
+    if (empty($element['##options']) && $element['#access']==false) {
+        unset($element['#access']);
+    }
+    $element['#options'] = pum_contactsegment_drupal_get_sectoren();
+}
+
+function pum_contactsegment_drupal_webform_submission_insert($node, $submission) {
+    $contactSegment = new WebformContactSegment($node->nid, $submission->sid);
+    $contactSegment->save();
+}
+
+function pum_contactsegment_drupal_webform_submission_update($node, $submission) {
+    $contactSegment = new WebformContactSegment($node->nid, $submission->sid);
+    $contactSegment->save();
+}
+
+function pum_contactsegment_drupal_form_webform_component_edit_form_alter(&$form, &$form_state) {
+    $component = $form_state['build_info']['args'][1];
+    if (!in_array($component['type'], array('select'))) {
+        return;
+    }
+
+    if (!isset($form['#node']->webform_civicrm)) {
+        return;
+    }
+
+    $form['webform_civicrm_contactsegment'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('CiviCRM Contact segment'),
+        '#weight' => 10,
+    );
+    $form['webform_civicrm_contactsegment']['enabled'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Fill this field with sectors'),
+        '#description' => t("The dropdown is filled with sectors"),
+        '#default_value' => _pum_contactsegment_drupal_webform_enabled($component),
+    );
+    $form['webform_civicrm_contactsegment']['role'] = array(
+        '#type' => 'select',
+        '#title' => t('Which role of contactsegment should this be saved'),
+        '#options' => pum_contactsegment_drupal_get_roles(),
+        '#default_value' => _pum_contactsegment_drupal_webform_get_role($component),
+        '#states' => array(
+            'invisible' => array(
+                ':input[name="webform_civicrm_contactsegment[enabled]"]' => array('checked' => false),
+            ),
+        ),
+    );
+    $contact_options = array();
+    foreach($form['#node']->webform_civicrm['data']['contact'] as $key => $contact) {
+        $contact_options[$key] = $contact['contact'][1]['webform_label'];
+    }
+    $form['webform_civicrm_contactsegment']['contact'] = array(
+        '#type' => 'select',
+        '#title' => t('Save contactsegment at contact'),
+        '#options' => $contact_options,
+        '#multiple' => true,
+        '#default_value' => _pum_contactsegment_drupal_webform_get_contact($component),
+        '#states' => array(
+            'invisible' => array(
+                ':input[name="webform_civicrm_contactsegment[enabled]"]' => array('checked' => false),
+            ),
+        ),
+    );
+}
+
+function pum_contactsegment_drupal_webform_component_presave(&$component) {
+    if (!isset($component['webform_civicrm_contactsegment']['enabled'])) {
+        return;
+    }
+    $component['extra']['webform_civicrm_contactsegment_enabled'] = $component['webform_civicrm_contactsegment']['enabled'] ? true : false;
+    $component['extra']['webform_civicrm_contactsegment_role'] = $component['webform_civicrm_contactsegment']['role'];
+    $component['extra']['webform_civicrm_contactsegment_contacts'] = serialize($component['webform_civicrm_contactsegment']['contact']);
+}
+
+function pum_contactsegment_drupal_get_roles() {
+    civicrm_initialize();
+    $civicoop_segment_role_option_group = civicrm_api3('OptionGroup', 'getvalue', array('name' => 'civicoop_segment_role', 'return' => 'id'));
+    $civicoop_segment_role_option_values = civicrm_api3('OptionValue', 'get', array('option_group_id' => $civicoop_segment_role_option_group));
+    $roles = array();
+    foreach($civicoop_segment_role_option_values['values'] as $role) {
+        $roles[$role['value']] = $role['label'];
+    }
+    return $roles;
+}
+
+function pum_contactsegment_drupal_get_sectoren() {
+    civicrm_initialize();
+    $segments = civicrm_api3('Segment', 'get', array());
+    $sectoren = array();
+    foreach($segments['values'] as $sector) {
+        if (empty($sector['parent_id'])) {
+            $sectoren[$sector['id']] = $sector['label'];
+        }
+    }
+    return $sectoren;
+}
+
+function _pum_contactsegment_drupal_webform_enabled(array $component) {
+    $enabled = false;
+    if (isset($component['extra']['webform_civicrm_contactsegment_enabled'])) {
+        $enabled = (bool) $component['extra']['webform_civicrm_contactsegment_enabled'];
+    }
+    return $enabled;
+}
+
+function _pum_contactsegment_drupal_webform_get_contact(array $component) {
+    $contacts = array();
+    if (!empty($component['extra']['webform_civicrm_contactsegment_contacts'])) {
+        $contacts = unserialize($component['extra']['webform_civicrm_contactsegment_contacts']);
+    }
+    return $contacts;
+}
+
+function _pum_contactsegment_drupal_webform_get_role(array $component) {
+    $role = false;
+    if (isset($component['extra']['webform_civicrm_contactsegment_role'])) {
+        $role = $component['extra']['webform_civicrm_contactsegment_role'];
+    }
+    return $role;
+}
+
+function pum_contactsegment_drupal_enable() {
+    $maxWeight = db_query("SELECT MAX(weight) FROM {system} where type = 'module' AND (name = 'webform_civicrm') ")->fetchField();
+    $maxWeight++;
+
+    //make sure that our module has a higher weight than the civicrm and civicrm_entity module
+    //if not our changes to the available fields for views wont occur
+    //because the hook should be runned after the civicrm and civcirm_entity has runned their relevant hooks
+    db_update('system')
+        ->fields(array('weight' => $maxWeight))
+        ->condition('type', 'module')
+        ->condition('name', 'pum_contactsegment_drupal')
+        ->execute();
+}
