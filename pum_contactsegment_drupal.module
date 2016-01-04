@@ -8,7 +8,8 @@ function pum_contactsegment_drupal_webform_component_render_alter(&$element, &$c
     if (empty($element['##options']) && $element['#access']==false) {
         unset($element['#access']);
     }
-    $element['#options'] = pum_contactsegment_drupal_get_sectoren();
+    $role = _pum_contactsegment_drupal_webform_get_role($component);
+    $element['#options'] = pum_contactsegment_drupal_get_segment_tree($role);
 }
 
 function pum_contactsegment_drupal_webform_submission_insert($node, $submission) {
@@ -80,6 +81,48 @@ function pum_contactsegment_drupal_webform_component_presave(&$component) {
     $component['extra']['webform_civicrm_contactsegment_contacts'] = serialize($component['webform_civicrm_contactsegment']['contact']);
 }
 
+function pum_contactsegment_drupal_get_role_name($value) {
+    $civicoop_segment_role_option_group = civicrm_api3('OptionGroup', 'getvalue', array('name' => 'civicoop_segment_role', 'return' => 'id'));
+    return civicrm_api3('OptionValue', 'getvalue', array('option_group_id' => $civicoop_segment_role_option_group, 'value' => $value, 'return' => 'name'));
+}
+
+function pum_contactsegment_drupal_has_segment_active_role($role, $segment_id, $contact_id, $start_date) {
+    $params['start_date'] = $start_date->format('Ymd');
+    $params['role'] = $role;
+    $params['segment_id'] = $segment_id;
+    $params['contact_id'] = $contact_id;
+    return CRM_Contactsegment_Utils::activeCurrentContactSegmentForRole($params);
+}
+
+function pum_contactsegment_drupal_is_role_unique($role_name, $segment_type='parent') {
+    $segmentSettings = civicrm_api3('SegmentSetting', 'Getsingle', array());
+    if ($segment_type == 'child') {
+        return $segmentSettings['child_roles'][$role_name]['unique'];
+    } else {
+        return $segmentSettings['parent_roles'][$role_name]['unique'];
+    }
+}
+
+function pum_contactsegment_drupal_is_parent_role($role_name) {
+    civicrm_initialize();
+    $segment_settings = civicrm_api3('SegmentSetting', 'get', array());
+    $segment_settings = reset($segment_settings['values']);
+    if (isset($segment_settings['parent_roles'][$role_name])) {
+        return true;
+    }
+    return false;
+}
+
+function pum_contactsegment_drupal_is_child_role($role_name) {
+    civicrm_initialize();
+    $segment_settings = civicrm_api3('SegmentSetting', 'get', array());
+    $segment_settings = reset($segment_settings['values']);
+    if (isset($segment_settings['child_roles'][$role_name])) {
+        return true;
+    }
+    return false;
+}
+
 function pum_contactsegment_drupal_get_roles() {
     civicrm_initialize();
     $civicoop_segment_role_option_group = civicrm_api3('OptionGroup', 'getvalue', array('name' => 'civicoop_segment_role', 'return' => 'id'));
@@ -91,16 +134,24 @@ function pum_contactsegment_drupal_get_roles() {
     return $roles;
 }
 
-function pum_contactsegment_drupal_get_sectoren() {
+function pum_contactsegment_drupal_get_segment_tree($role) {
+    $role_name = pum_contactsegment_drupal_get_role_name($role);
+    $include_parents = pum_contactsegment_drupal_is_parent_role($role_name);
+    $include_children = pum_contactsegment_drupal_is_child_role($role_name);
     civicrm_initialize();
-    $segments = civicrm_api3('Segment', 'get', array());
-    $sectoren = array();
-    foreach($segments['values'] as $sector) {
-        if (empty($sector['parent_id'])) {
-            $sectoren[$sector['id']] = $sector['label'];
+    $parent_segments = civicrm_api3('Segment', 'get', array('parent_id' => 'null', 'option.limit' => 99999));
+    $areas_of_expertise = array();
+    foreach($parent_segments['values'] as $parent) {
+        $children = civicrm_api3('Segment', 'get', array('parent_id' => $parent['id'], 'option.limit' => 99999));
+        if ($include_children && count($children['values'])) {
+            foreach($children['values'] as $child) {
+                $areas_of_expertise[$parent['label']][$child['id']] = $child['label'];
+            }
+        } elseif ($include_parents) {
+            $areas_of_expertise[$parent['id']] = $parent['label'];
         }
     }
-    return $sectoren;
+    return $areas_of_expertise;
 }
 
 function _pum_contactsegment_drupal_webform_enabled(array $component) {

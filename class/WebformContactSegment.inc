@@ -33,17 +33,37 @@ class WebformContactSegment
     }
 
     protected function saveContactSegment($submission, $component) {
+        $start_date = new DateTime();
         $contacts = _pum_contactsegment_drupal_webform_get_contact($component);
         $role = _pum_contactsegment_drupal_webform_get_role($component);
         foreach($submission as $contactsegment_id) {
             $parameters = array();
+            $parameters['start_date'] = $start_date->format('Ymd');
             $parameters['role_value'] = $role;
             $parameters['segment_id'] = $contactsegment_id;
             foreach ($contacts as $key) {
                 if (isset($this->submission->civicrm['contact_id'][$key])) {
-                    $parameters['contact_id'] = $this->submission->civicrm['contact_id'][$key];
+                    $contact_id = $this->submission->civicrm['contact_id'][$key];
+                    $this->checkUniqueAndEnd($contactsegment_id, $role, $contact_id);
+                    $parameters['contact_id'] = $contact_id;
                     civicrm_api3('ContactSegment', 'create', $parameters);
                 }
+            }
+        }
+    }
+
+    protected function checkUniqueAndEnd($segment_id, $role, $contact_id) {
+        $start_date = new DateTime();
+        $segment = civicrm_api3('Segment', 'getsingle', array('id' => $segment_id));
+        $segment_type = empty($segment['parent_id']) ? 'parent' : 'child';
+        $is_unqiue = pum_contactsegment_drupal_is_role_unique(pum_contactsegment_drupal_get_role_name($role), $segment_type);
+        if ($is_unqiue) {
+            $current_id = pum_contactsegment_drupal_has_segment_active_role($role, $segment_id, $contact_id, $start_date);
+            if ($current_id) {
+                $endParams = array();
+                $endParams['id'] = $current_id;
+                $endParams['end_date'] = $start_date->format('Ymd');
+                civicrm_api3('ContactSegment', 'create', $endParams);
             }
         }
     }
