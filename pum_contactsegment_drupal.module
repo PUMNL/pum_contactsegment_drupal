@@ -1,17 +1,5 @@
 <?php
 
-function pum_contactsegment_drupal_webform_component_render_alter(&$element, &$component) {
-    if (!WebformContactSegment::checkComponentForContactSegment($component)) {
-        return;
-    }
-
-    if (empty($element['##options']) && $element['#access']==false) {
-        unset($element['#access']);
-    }
-    $role = _pum_contactsegment_drupal_webform_get_role($component);
-    $element['#options'] = pum_contactsegment_drupal_get_segment_tree($role);
-}
-
 function pum_contactsegment_drupal_webform_submission_insert($node, $submission) {
     $contactSegment = new WebformContactSegment($node->nid, $submission->sid);
     $contactSegment->save();
@@ -35,7 +23,7 @@ function pum_contactsegment_drupal_form_webform_component_edit_form_alter(&$form
     $form['webform_civicrm_contactsegment'] = array(
         '#type' => 'fieldset',
         '#title' => t('CiviCRM Contact segment'),
-        '#weight' => 10,
+        '#weight' => (isset($form['items']['weight']) ? $form['items']['weight'] - 1 : 1),
     );
     $form['webform_civicrm_contactsegment']['enabled'] = array(
         '#type' => 'checkbox',
@@ -70,6 +58,12 @@ function pum_contactsegment_drupal_form_webform_component_edit_form_alter(&$form
             ),
         ),
     );
+
+    $form['items']['#states']['invisible'][':input[name="webform_civicrm_contactsegment[enabled]"]'] = array('checked' => true);
+
+    if (_pum_contactsegment_drupal_webform_enabled($component)) {
+        $form['items']['options']['option_settings']['options_source']['#default_value'] = 'contactsegment';
+    }
 }
 
 function pum_contactsegment_drupal_webform_component_presave(&$component) {
@@ -79,6 +73,10 @@ function pum_contactsegment_drupal_webform_component_presave(&$component) {
     $component['extra']['webform_civicrm_contactsegment_enabled'] = $component['webform_civicrm_contactsegment']['enabled'] ? true : false;
     $component['extra']['webform_civicrm_contactsegment_role'] = $component['webform_civicrm_contactsegment']['role'];
     $component['extra']['webform_civicrm_contactsegment_contacts'] = serialize($component['webform_civicrm_contactsegment']['contact']);
+
+    if ($component['extra']['webform_civicrm_contactsegment_enabled']) {
+        $component['extra']['options_source'] = 'contactsegment';
+    }
 }
 
 function pum_contactsegment_drupal_get_role_name($value) {
@@ -134,11 +132,32 @@ function pum_contactsegment_drupal_get_roles() {
     return $roles;
 }
 
+function pum_contactsegment_drupal_options($component, $flat, $arguments) {
+    $role = _pum_contactsegment_drupal_webform_get_role($component);
+    return pum_contactsegment_drupal_get_segment_tree($role);
+}
+
+function pum_contactsegment_drupal_webform_select_options_info() {
+    $items = array();
+
+    $items['contactsegment'] = array(
+        'title' => t('Sectoren'),
+        'options callback' => 'pum_contactsegment_drupal_options',
+    );
+
+    return $items;
+}
+
 function pum_contactsegment_drupal_get_segment_tree($role) {
-    $role_name = pum_contactsegment_drupal_get_role_name($role);
-    $include_parents = pum_contactsegment_drupal_is_parent_role($role_name);
-    $include_children = pum_contactsegment_drupal_is_child_role($role_name);
     civicrm_initialize();
+    if ($role) {
+        $role_name = pum_contactsegment_drupal_get_role_name($role);
+        $include_parents = pum_contactsegment_drupal_is_parent_role($role_name);
+        $include_children = pum_contactsegment_drupal_is_child_role($role_name);
+    } else {
+        $include_parents = true;
+        $include_children = true;
+    }
     $parent_segments = civicrm_api3('Segment', 'get', array('parent_id' => 'null', 'option.limit' => 99999));
     $areas_of_expertise = array();
     foreach($parent_segments['values'] as $parent) {
