@@ -166,6 +166,7 @@ function pum_contactsegment_drupal_get_segment_tree($role) {
     foreach($parent_segments['values'] as $parent) {
         $areas_of_expertise[$parent['id']] = $parent['label'];
     }
+    asort($areas_of_expertise);
     return $areas_of_expertise;
 }
 
