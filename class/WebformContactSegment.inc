@@ -42,7 +42,6 @@ class WebformContactSegment
             $parameters['start_date'] = $start_date->format('Ymd');
             $parameters['role_value'] = $role;
             $parameters['segment_id'] = $contactsegment_id;
-            $parameters['is_main'] = '0';
             if ($is_main_sector) {
                 $parameters['is_main'] = '1';
             }
@@ -66,7 +65,7 @@ class WebformContactSegment
         $is_unqiue = pum_contactsegment_drupal_is_role_unique(pum_contactsegment_drupal_get_role_name($role), $segment_type);
         if ($is_unqiue) {
             $current_id = pum_contactsegment_drupal_has_segment_active_role($role, $segment_id, $contact_id, $start_date);
-            if ($current_id) {
+            if (!empty($current_id)) {
                 $endParams = array();
                 $endParams['id'] = $current_id;
                 $endParams['end_date'] = $start_date->format('Ymd');
@@ -76,7 +75,7 @@ class WebformContactSegment
     }
 
     public static function checkComponentForContactSegment($component) {
-        if ($component['type'] != 'select' || !$component['extra']['webform_civicrm_contactsegment_enabled']) {
+        if ($component['type'] != 'select' || empty($component['extra']['webform_civicrm_contactsegment_enabled'])) {
             return false;
         }
         return true;
