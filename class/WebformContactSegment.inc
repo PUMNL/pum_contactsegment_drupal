@@ -42,12 +42,15 @@ class WebformContactSegment
             $parameters['start_date'] = $start_date->format('Ymd');
             $parameters['role_value'] = $role;
             $parameters['segment_id'] = $contactsegment_id;
+            $parameters['is_main'] = '0';
             if ($is_main_sector) {
-                $parameters['is_main'] = 1;
+                $parameters['is_main'] = '1';
             }
             foreach ($contacts as $key) {
                 if (isset($this->submission->civicrm['contact_id'][$key])) {
                     $contact_id = $this->submission->civicrm['contact_id'][$key];
+                    // When it is only allowed to have one role then end the current role
+                    // before creating the new role.
                     $this->checkUniqueAndEnd($contactsegment_id, $role, $contact_id);
                     $parameters['contact_id'] = $contact_id;
                     civicrm_api3('ContactSegment', 'create', $parameters);
