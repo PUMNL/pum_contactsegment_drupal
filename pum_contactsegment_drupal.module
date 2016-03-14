@@ -59,6 +59,29 @@ function pum_contactsegment_drupal_form_webform_component_edit_form_alter(&$form
         ),
     );
 
+    $form['webform_civicrm_contactsegment']['hide_segment'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Hide certain contact segments'),
+      '#description' => t(""),
+      '#default_value' => _pum_contactsegment_drupal_webform_hide_segment($component),
+      '#states' => array(
+        'invisible' => array(
+          ':input[name="webform_civicrm_contactsegment[enabled]"]' => array('checked' => false),
+        ),
+      ),
+    );
+    $form['webform_civicrm_contactsegment']['hide_segments'] = array(
+      '#type' => 'checkboxes',
+      '#title' => t('Hide segements'),
+      '#options' => pum_contactsegment_drupal_get_segments(),
+      '#default_value' => _pum_contactsegment_drupal_webform_hide_segments($component),
+      '#states' => array(
+        'invisible' => array(
+          ':input[name="webform_civicrm_contactsegment[hide_segment]"]' => array('checked' => false),
+        ),
+      ),
+    );
+
     $form['items']['#states']['invisible'][':input[name="webform_civicrm_contactsegment[enabled]"]'] = array('checked' => true);
 
     if (_pum_contactsegment_drupal_webform_enabled($component)) {
@@ -73,6 +96,8 @@ function pum_contactsegment_drupal_webform_component_presave(&$component) {
     $component['extra']['webform_civicrm_contactsegment_enabled'] = $component['webform_civicrm_contactsegment']['enabled'] ? true : false;
     $component['extra']['webform_civicrm_contactsegment_role'] = $component['webform_civicrm_contactsegment']['role'];
     $component['extra']['webform_civicrm_contactsegment_contacts'] = serialize($component['webform_civicrm_contactsegment']['contact']);
+    $component['extra']['webform_civicrm_contactsegment_hide_segment'] = $component['webform_civicrm_contactsegment']['hide_segment'] ? true : false;
+    $component['extra']['webform_civicrm_contactsegment_hide_segments'] = $component['webform_civicrm_contactsegment']['hide_segments'];
 
     if ($component['extra']['webform_civicrm_contactsegment_enabled']) {
         $component['extra']['options_source'] = 'contactsegment';
@@ -134,7 +159,18 @@ function pum_contactsegment_drupal_get_roles() {
 
 function pum_contactsegment_drupal_options($component, $flat, $arguments) {
     $role = _pum_contactsegment_drupal_webform_get_role($component);
-    return pum_contactsegment_drupal_get_segment_tree($role);
+    $hide_segments = _pum_contactsegment_drupal_webform_hide_segments($component);
+    return pum_contactsegment_drupal_get_segment_tree($role, $hide_segments);
+}
+
+function pum_contactsegment_drupal_get_segments() {
+    civicrm_initialize();
+    $parent_segments = civicrm_api3('Segment', 'get', array('parent_id' => 'null', 'option.limit' => 99999));
+    $areas_of_expertise = array();
+    foreach($parent_segments['values'] as $parent) {
+        $areas_of_expertise[$parent['id']] = $parent['label'];
+    }
+    return $areas_of_expertise;
 }
 
 function pum_contactsegment_drupal_webform_select_options_info() {
@@ -148,7 +184,7 @@ function pum_contactsegment_drupal_webform_select_options_info() {
     return $items;
 }
 
-function pum_contactsegment_drupal_get_segment_tree($role) {
+function pum_contactsegment_drupal_get_segment_tree($role, $hide_segments=array()) {
     civicrm_initialize();
     if ($role) {
         $role_name = pum_contactsegment_drupal_get_role_name($role);
@@ -161,6 +197,10 @@ function pum_contactsegment_drupal_get_segment_tree($role) {
     $parent_segments = civicrm_api3('Segment', 'get', array('parent_id' => 'null', 'option.limit' => 99999));
     $areas_of_expertise = array();
     foreach($parent_segments['values'] as $parent) {
+        if (in_array($parent['id'], $hide_segments)) {
+            continue;
+        }
+
         $children = civicrm_api3('Segment', 'get', array('parent_id' => $parent['id'], 'option.limit' => 99999));
         if ($include_children && count($children['values'])) {
             foreach($children['values'] as $child) {
@@ -171,6 +211,22 @@ function pum_contactsegment_drupal_get_segment_tree($role) {
         }
     }
     return $areas_of_expertise;
+}
+
+function _pum_contactsegment_drupal_webform_hide_segment(array $component) {
+    $hide = false;
+    if (isset($component['extra']['webform_civicrm_contactsegment_hide_segment'])) {
+        $hide = (bool) $component['extra']['webform_civicrm_contactsegment_hide_segment'];
+    }
+    return $hide;
+}
+
+function _pum_contactsegment_drupal_webform_hide_segments(array $component) {
+    $segments = array();
+    if (isset($component['extra']['webform_civicrm_contactsegment_hide_segments'])) {
+        $segments = $component['extra']['webform_civicrm_contactsegment_hide_segments'];
+    }
+    return $segments;
 }
 
 function _pum_contactsegment_drupal_webform_enabled(array $component) {
