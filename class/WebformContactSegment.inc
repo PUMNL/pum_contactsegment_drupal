@@ -36,14 +36,20 @@ class WebformContactSegment
         $start_date = new DateTime();
         $contacts = _pum_contactsegment_drupal_webform_get_contact($component);
         $role = _pum_contactsegment_drupal_webform_get_role($component);
+        $is_main_sector = _pum_contactsegment_drupal_webform_is_main_sector($component);
         foreach($submission as $contactsegment_id) {
             $parameters = array();
             $parameters['start_date'] = $start_date->format('Ymd');
             $parameters['role_value'] = $role;
             $parameters['segment_id'] = $contactsegment_id;
+            if ($is_main_sector) {
+                $parameters['is_main'] = '1';
+            }
             foreach ($contacts as $key) {
                 if (isset($this->submission->civicrm['contact_id'][$key])) {
                     $contact_id = $this->submission->civicrm['contact_id'][$key];
+                    // When it is only allowed to have one role then end the current role
+                    // before creating the new role.
                     $this->checkUniqueAndEnd($contactsegment_id, $role, $contact_id);
                     $parameters['contact_id'] = $contact_id;
                     civicrm_api3('ContactSegment', 'create', $parameters);
@@ -59,7 +65,7 @@ class WebformContactSegment
         $is_unqiue = pum_contactsegment_drupal_is_role_unique(pum_contactsegment_drupal_get_role_name($role), $segment_type);
         if ($is_unqiue) {
             $current_id = pum_contactsegment_drupal_has_segment_active_role($role, $segment_id, $contact_id, $start_date);
-            if ($current_id) {
+            if (!empty($current_id)) {
                 $endParams = array();
                 $endParams['id'] = $current_id;
                 $endParams['end_date'] = $start_date->format('Ymd');
@@ -69,7 +75,7 @@ class WebformContactSegment
     }
 
     public static function checkComponentForContactSegment($component) {
-        if ($component['type'] != 'select' || !$component['extra']['webform_civicrm_contactsegment_enabled']) {
+        if ($component['type'] != 'select' || empty($component['extra']['webform_civicrm_contactsegment_enabled'])) {
             return false;
         }
         return true;

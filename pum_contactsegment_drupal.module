@@ -42,6 +42,16 @@ function pum_contactsegment_drupal_form_webform_component_edit_form_alter(&$form
             ),
         ),
     );
+    $form['webform_civicrm_contactsegment']['is_main_sector'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Is main sector'),
+      '#default_value' => _pum_contactsegment_drupal_webform_is_main_sector($component),
+      '#states' => array(
+        'invisible' => array(
+          ':input[name="webform_civicrm_contactsegment[enabled]"]' => array('checked' => false),
+        ),
+      ),
+    );
     $contact_options = array();
     foreach($form['#node']->webform_civicrm['data']['contact'] as $key => $contact) {
         $contact_options[$key] = $contact['contact'][1]['webform_label'];
@@ -94,6 +104,7 @@ function pum_contactsegment_drupal_webform_component_presave(&$component) {
         return;
     }
     $component['extra']['webform_civicrm_contactsegment_enabled'] = $component['webform_civicrm_contactsegment']['enabled'] ? true : false;
+    $component['extra']['webform_civicrm_contactsegment_is_main_sector'] = $component['webform_civicrm_contactsegment']['is_main_sector'] ? true : false;
     $component['extra']['webform_civicrm_contactsegment_role'] = $component['webform_civicrm_contactsegment']['role'];
     $component['extra']['webform_civicrm_contactsegment_contacts'] = serialize($component['webform_civicrm_contactsegment']['contact']);
     $component['extra']['webform_civicrm_contactsegment_hide_segment'] = $component['webform_civicrm_contactsegment']['hide_segment'] ? true : false;
@@ -186,30 +197,15 @@ function pum_contactsegment_drupal_webform_select_options_info() {
 
 function pum_contactsegment_drupal_get_segment_tree($role, $hide_segments=array()) {
     civicrm_initialize();
-    if ($role) {
-        $role_name = pum_contactsegment_drupal_get_role_name($role);
-        $include_parents = pum_contactsegment_drupal_is_parent_role($role_name);
-        $include_children = pum_contactsegment_drupal_is_child_role($role_name);
-    } else {
-        $include_parents = true;
-        $include_children = true;
-    }
     $parent_segments = civicrm_api3('Segment', 'get', array('parent_id' => 'null', 'option.limit' => 99999));
     $areas_of_expertise = array();
     foreach($parent_segments['values'] as $parent) {
         if (in_array($parent['id'], $hide_segments)) {
             continue;
         }
-
-        $children = civicrm_api3('Segment', 'get', array('parent_id' => $parent['id'], 'option.limit' => 99999));
-        if ($include_children && count($children['values'])) {
-            foreach($children['values'] as $child) {
-                $areas_of_expertise[$parent['label']][$child['id']] = $child['label'];
-            }
-        } elseif ($include_parents) {
-            $areas_of_expertise[$parent['id']] = $parent['label'];
-        }
+        $areas_of_expertise[$parent['id']] = $parent['label'];
     }
+    asort($areas_of_expertise);
     return $areas_of_expertise;
 }
 
@@ -227,6 +223,14 @@ function _pum_contactsegment_drupal_webform_hide_segments(array $component) {
         $segments = $component['extra']['webform_civicrm_contactsegment_hide_segments'];
     }
     return $segments;
+}
+
+function _pum_contactsegment_drupal_webform_is_main_sector(array $component) {
+    $enabled = false;
+    if (isset($component['extra']['webform_civicrm_contactsegment_is_main_sector'])) {
+        $enabled = (bool) $component['extra']['webform_civicrm_contactsegment_is_main_sector'];
+    }
+    return $enabled;
 }
 
 function _pum_contactsegment_drupal_webform_enabled(array $component) {
