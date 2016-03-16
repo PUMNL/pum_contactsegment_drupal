@@ -181,6 +181,7 @@ function pum_contactsegment_drupal_get_segments() {
     foreach($parent_segments['values'] as $parent) {
         $areas_of_expertise[$parent['id']] = $parent['label'];
     }
+    asort($areas_of_expertise);
     return $areas_of_expertise;
 }
 
@@ -218,6 +219,10 @@ function _pum_contactsegment_drupal_webform_hide_segment(array $component) {
 }
 
 function _pum_contactsegment_drupal_webform_hide_segments(array $component) {
+    $hide = _pum_contactsegment_drupal_webform_hide_segment($component);
+    if (!$hide) {
+        return array();
+    }
     $segments = array();
     if (isset($component['extra']['webform_civicrm_contactsegment_hide_segments'])) {
         $segments = $component['extra']['webform_civicrm_contactsegment_hide_segments'];
