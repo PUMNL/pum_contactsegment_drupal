@@ -180,6 +180,9 @@ function pum_contactsegment_drupal_get_segments() {
     $areas_of_expertise = array();
     foreach($parent_segments['values'] as $parent) {
         $areas_of_expertise[$parent['id']] = $parent['label'];
+        if (empty($parent['is_active'])) {
+            $areas_of_expertise[$parent['id']] .= ' '.ts('(inactive)');
+        }
     }
     asort($areas_of_expertise);
     return $areas_of_expertise;
@@ -202,6 +205,9 @@ function pum_contactsegment_drupal_get_segment_tree($role, $hide_segments=array(
     $areas_of_expertise = array();
     foreach($parent_segments['values'] as $parent) {
         if (in_array($parent['id'], $hide_segments)) {
+            continue;
+        }
+        if (empty($parent['is_active'])) {
             continue;
         }
         $areas_of_expertise[$parent['id']] = $parent['label'];
