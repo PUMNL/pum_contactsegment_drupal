@@ -46,8 +46,13 @@ class WebformContactSegment
                 $parameters['is_main'] = '1';
             }
             foreach ($contacts as $key) {
-                if (isset($this->submission->civicrm['contact_id'][$key])) {
-                    $contact_id = $this->submission->civicrm['contact_id'][$key];
+                $contact_id = false;
+                if (isset($this->submission->civicrm['contact_id']) && isset($this->submission->civicrm['contact_id'][$key])) {
+                  $contact_id = $this->submission->civicrm['contact_id'][$key];
+                } elseif (isset($this->submission->civicrm['contact']) && isset($this->submission->civicrm['contact'][$key])) {
+                  $contact_id = $this->submission->civicrm['contact'][$key]['id'];
+                }
+                if ($contact_id) {
                     // When it is only allowed to have one role then end the current role
                     // before creating the new role.
                     $this->checkUniqueAndEnd($contactsegment_id, $role, $contact_id);
@@ -98,15 +103,13 @@ class WebformContactSegment
             return false;
         }
 
-        if (!isset($this->submission->civicrm['contact_id'])) {
-            return false;
+        if (isset($this->submission->civicrm['contact_id']) && count($this->submission->civicrm['contact_id']) > 0) {
+          return TRUE;
+        } elseif (isset($this->submission->civicrm['contact']) && count($this->submission->civicrm['contact']) > 0) {
+          return TRUE;
         }
 
-        if (count($this->submission->civicrm['contact_id']) == 0) {
-            return false;
-        }
-
-        return true;
+        return false;
     }
 
 }
